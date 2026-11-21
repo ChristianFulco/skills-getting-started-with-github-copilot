@@ -17,6 +17,29 @@ def restore_activities():
 client = TestClient(app)
 
 
+def test_root_redirects_to_static_page():
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/static/index.html"
+
+
+def test_get_activities_returns_activity_details():
+    response = client.get("/activities")
+
+    assert response.status_code == 200
+    assert "Chess Club" in response.json()
+
+    chess_club = response.json()["Chess Club"]
+    assert chess_club["description"] == "Learn strategies and compete in chess tournaments"
+    assert chess_club["schedule"] == "Fridays, 3:30 PM - 5:00 PM"
+    assert chess_club["max_participants"] == 12
+    assert chess_club["participants"] == [
+        "michael@mergington.edu",
+        "daniel@mergington.edu",
+    ]
+
+
 def test_preserves_existing_and_adds_six_activities():
     assert {"Chess Club", "Programming Class", "Gym Class"} <= activities.keys()
     assert {
@@ -27,6 +50,21 @@ def test_preserves_existing_and_adds_six_activities():
         "Math Club",
         "Debate Team",
     } <= activities.keys()
+
+
+def test_signup_adds_participant():
+    email = "new.student@mergington.edu"
+
+    response = client.post(
+        "/activities/Soccer%20Team/signup",
+        params={"email": email},
+    )
+
+    assert response.status_code == 200
+    assert email in activities["Soccer Team"]["participants"]
+    assert response.json()["message"] == (
+        "Signed up new.student@mergington.edu for Soccer Team"
+    )
 
 
 def test_duplicate_signup_is_rejected():
@@ -45,6 +83,16 @@ def test_duplicate_signup_is_rejected():
     assert duplicate.status_code == 400
     assert duplicate.json()["detail"] == "Student is already signed up"
     assert activities["Chess Club"]["participants"].count(email) == 1
+
+
+def test_signup_rejects_unknown_activity():
+    response = client.post(
+        "/activities/Unknown%20Club/signup",
+        params={"email": "student@mergington.edu"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Activity not found"
 
 
 def test_unregister_removes_participant():
@@ -72,3 +120,14 @@ def test_unregister_rejects_unknown_participant():
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Student is not signed up"
+
+
+def test_unregister_rejects_unknown_activity():
+    response = client.request(
+        "DELETE",
+        "/activities/Unknown%20Club/unregister",
+        params={"email": "student@mergington.edu"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Activity not found"
