@@ -45,3 +45,30 @@ def test_duplicate_signup_is_rejected():
     assert duplicate.status_code == 400
     assert duplicate.json()["detail"] == "Student is already signed up"
     assert activities["Chess Club"]["participants"].count(email) == 1
+
+
+def test_unregister_removes_participant():
+    email = "michael@mergington.edu"
+
+    response = client.request(
+        "DELETE",
+        "/activities/Chess%20Club/unregister",
+        params={"email": email},
+    )
+
+    assert response.status_code == 200
+    assert email not in activities["Chess Club"]["participants"]
+    assert response.json()["message"] == (
+        "Unregistered michael@mergington.edu from Chess Club"
+    )
+
+
+def test_unregister_rejects_unknown_participant():
+    response = client.request(
+        "DELETE",
+        "/activities/Chess%20Club/unregister",
+        params={"email": "unknown@mergington.edu"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Student is not signed up"
